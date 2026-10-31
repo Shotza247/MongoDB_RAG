@@ -1,0 +1,42 @@
+services:
+  api:
+    build:
+      context: .
+      target: api
+    env_file: .env
+    ports:
+      - "8765:8765"
+    command:
+      - python
+      - -m
+      - uvicorn
+      - mongodb_vector_test_ui.api.fastapi:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8765"
+      - --http
+      - h11
+
+  streamlit:
+    build:
+      context: .
+      target: streamlit
+    depends_on:
+      - api
+    environment:
+      RAG_API_URL: http://api:8765
+      RAG_TEST_DATABASE: ${MONGODB_DB:-RAG_with_MongoDB}
+      RAG_TEST_COLLECTION: ${MONGODB_COLLECTION:-profile_chunks}
+    ports:
+      - "8501:8501"
+    command:
+      - python
+      - -m
+      - streamlit
+      - run
+      - templates/document-vector-pipeline/streamlit_app.py
+      - --server.address
+      - 0.0.0.0
+      - --server.port
+      - "8501"

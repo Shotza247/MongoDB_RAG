@@ -1,0 +1,36 @@
+# Environments and secrets
+.env
+.env.*
+!.env.example
+.venv/
+.uv-cache/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# Local/private source documents
+data/profile_sources/*
+data/synced_resumes/*
+data/source_documents/*
+!data/**/.gitkeep
+
+# Logs and local runtime artifacts
+*.log
+logs/
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+
+# Vercel CLI
+.vercel/

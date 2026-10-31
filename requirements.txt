@@ -1,0 +1,18 @@
+# Core API runtime
+fastapi>=0.141,<0.142
+pydantic>=2.13,<2.14
+starlette>=1.6,<1.7
+uvicorn>=0.30
+
+# Configuration and HTTP providers
+python-dotenv>=1.0
+requests>=2.32
+
+# MongoDB Atlas and document extraction
+pymongo>=4.8
+pypdf>=5.0
+
+# MVP2 OpenAI chat workflow (LangGraph + LangChain OpenAI adapter)
+langchain>=1.0
+langgraph>=1.0
+langchain-openai>=1.0
