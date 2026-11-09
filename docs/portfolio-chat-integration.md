@@ -1,20 +1,30 @@
 # Portfolio Chat Integration
 
-Status: backend implementation is in progress; integration is not accepted. FastAPI
-POST `/api/ask` and the Vercel entry point exist. The answer workflow now requests a
-typed `GroundedAnswer` schema, but its focused tests and post-fix live request are
-pending. The portfolio still uses its local keyword matcher; the API is not deployed
-and browser integration has not passed acceptance. See `project-status.md` for the
-current handoff and `templates/document-vector-pipeline/PIPELINE_AUDIT.md` for the
-chronological failure/fix record.
+Status: local browser integration is implemented; live answer/citation acceptance and
+deployment remain pending. The portfolio checks FastAPI `GET /api/status` before
+`POST /api/ask`. The keyword matcher supplies the relevant section link, but its
+answer fallback is temporarily disabled during latency troubleshooting. The deployed
+endpoint remains commented out until preview acceptance. See
+`project-status.md` for the current handoff and
+`templates/document-vector-pipeline/PIPELINE_AUDIT.md` for the chronological record.
 
 ## Request Contract
 
-The static portfolio sends the visitor's question to the configured RAG API base URL at POST /api/ask with JSON fields query, top_k, and min_score. The API base URL is public configuration, not a secret.
+The static portfolio first calls GET `/api/status` to verify MongoDB and the configured
+chat model, then sends the visitor's question to the configured RAG API base URL at
+POST `/api/ask` with JSON fields `query`, `top_k: 3`, and `min_score`. The portfolio
+requires the response model to be `gpt-5.5`. Local browser testing serves the
+portfolio from `http://127.0.0.1:5500` and runs the profile API on port `8766`.
+Configure `CORS_ALLOWED_ORIGINS` with the exact portfolio origins. The API base URL
+is public configuration, not a secret.
 
 Never include a MongoDB URI, model API key, or shared secret in HTML/JavaScript. Do not pass database or collection overrides from the browser. The deployed API must restrict this route to the reviewed public profile collection.
 
-Successful responses contain answer, citations, and insufficient_evidence. Render the answer and structured citations from the response; citations resolve evidence IDs to trusted source ID, chunk ID, title/section, and vector/rerank scores. Avoid exposing raw diagnostics to visitors.
+Successful responses contain answer, citations, insufficient_evidence, and
+`timings_ms` for embedding, retrieval, reranking, model generation, and total API
+time. Keep answers direct and brief; show resolved evidence IDs, source/title/section,
+chunk IDs, and vector/rerank scores only in an opt-in collapsed disclosure. Avoid
+exposing raw diagnostics to visitors.
 
 ## LLM Answer Acceptance
 
@@ -40,9 +50,14 @@ Before connecting the website, invoke /api/ask with the intended provider and ve
 
 - Show loading and prevent duplicate submission while a request is in flight.
 - Support Enter submission and preserve keyboard/accessibility behavior.
-- Show the answer with source title/section citations.
+- Keep the answer concise and focused on the visitor's question.
+- Put evidence details and scores in a collapsed, keyboard-accessible disclosure.
+- Check `/api/status` before `/api/ask` and display measured timings for diagnosis.
+- Keep local keyword fallback disabled during API latency troubleshooting so failures
+  remain visible.
 - For insufficient evidence, show the cautious answer and no invented citations.
-- On timeout, network, provider, or malformed-response errors, show a retry action.
+- On timeout, network, provider, or malformed-response errors, show the API error and
+  elapsed time; do not substitute a local answer while troubleshooting.
 - If local keyword fallback is used, label it as a local answer; never present it as RAG output.
 - Send only the question and supported retrieval options. Do not silently persist visitor questions.
 
@@ -52,7 +67,12 @@ Deploy MongoDB RAG as a separate Vercel project rooted at the RAG repository, us
 
 Set MongoDB, embedding, reranker, and chat-provider secrets in the RAG Vercel project's server-side environment settings. Keep them out of portfolio code and browser bundles.
 
-Before browser calls, add exact portfolio preview and production origins to FastAPI CORS middleware. CORS controls browser access but is not authentication: also enforce request/time limits, rate/abuse controls, and a server-side database target allowlist. Do not embed a static API token in public JavaScript.
+FastAPI CORS middleware reads `CORS_ALLOWED_ORIGINS`; local defaults allow only the
+two localhost port-5500 origins. Before browser calls to a preview or production API,
+set the exact deployed portfolio origins in that server-side variable. CORS controls
+browser access but is not authentication: also enforce request/time limits, rate/abuse
+controls, and a server-side database target allowlist. Do not embed a static API token
+in public JavaScript.
 
 The current vercel.json excludes development files. It is not itself a deployment, secret-management, CORS, or auth configuration. Measure /api/ask duration in preview before setting a function-duration override.
 
@@ -60,7 +80,7 @@ The current vercel.json excludes development files. It is not itself a deploymen
 
 1. Local API: real configured chat-model invocation; multi-chunk synthesis; valid citations; insufficient evidence; malformed output; provider error.
 2. Vercel preview: status, MongoDB access, search/rerank/ask, citation shape, timeout, bundle size, and function duration.
-3. Browser preview: CORS, answer, citations, no-context response, offline/error fallback labeling, retry, keyboard, and mobile layout.
+3. Browser preview: CORS, answer, citations, no-context response, visible offline/API errors, keyboard, and mobile layout.
 4. Production: confirm exact origins and environment values, then repeat essential answer/citation/error checks.
 
 Do not mark website chat complete until preview and production results are recorded in the portfolio roadmap and RAG audit.

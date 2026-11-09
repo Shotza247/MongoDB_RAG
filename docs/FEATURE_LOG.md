@@ -6,6 +6,13 @@ tags: []
 
 # Feature Log
 
+## 2026-11-01 - Local Portfolio Ask CORS
+
+- Added configurable FastAPI CORS origins with localhost-only defaults for testing the
+  portfolio's `/api/ask` call.
+- Added preflight coverage for the approved local origin and an unapproved origin.
+- Documented that deployed portfolio origins must be explicitly configured server-side.
+
 ## 2026-10-31 - API Review And Validation Coverage
 
 - Added FastAPI route-contract and OpenAPI assertions for `POST /api/ask`.

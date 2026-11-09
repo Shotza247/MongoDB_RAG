@@ -41,7 +41,7 @@ and `llm`. The production launch target is
 | Grounded LLM answers | Structured-output fix applied; runtime verification pending | Local configuration selects `gpt-5.5`; mocked workflow tests pass, but a live provider answer and citation acceptance remain pending. |
 | Google Drive source sync | Not started | Authentication, approved-folder scope, change detection, and sync endpoints remain. |
 | Vercel deployment | Prepared, not deployed | api/index.py and vercel.json exist; Vercel environment, preview deployment, CORS, and hosted smoke tests remain. |
-| Portfolio Agent integration | Planned, not started | Website still uses local key-value matching. Connect it to deployed /api/ask only after preview/API, CORS, rate-control, and citation checks pass. |
+| Portfolio Agent integration | Local browser wiring implemented; acceptance pending | NEXUS calls local `/api/ask`, renders citations/scores, preserves section links, and labels keyword fallback. Deployed URL remains disabled pending real-answer, CORS, rate-control, and citation checks. |
 
 Architecture documentation intentionally uses only Mermaid flowcharts and sequence
 diagrams: flowcharts show capability boundaries, while sequence diagrams show the
