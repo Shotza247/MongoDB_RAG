@@ -23,6 +23,8 @@ class FakeStructuredChatModel:
 
     def invoke(self, messages):
         assert len(messages) == 2
+        assert "Answer only the question" in messages[0]["content"]
+        assert "stay within 40 words" in messages[0]["content"]
         return self.response
 
 
@@ -65,6 +67,8 @@ def test_answer_workflow_uses_structured_output_and_resolves_citations(
 
     assert result["answer"] == payload["answer"]
     assert result["evidence_count"] == 3
+    assert set(result["timings_ms"]) == {"rerank", "answer_generation"}
+    assert all(value >= 0 for value in result["timings_ms"].values())
     assert [citation["evidence_id"] for citation in result["citations"]] == [
         "E1",
         "E2",

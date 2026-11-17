@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
+from time import perf_counter
 from typing import Any
 
 from typing_extensions import TypedDict
@@ -26,6 +27,8 @@ class AnswerWorkflowState(TypedDict, total=False):
     selection: Any
     messages: list[dict[str, str]]
     model_response: str
+    rerank_ms: float
+    answer_generation_ms: float
     answer_result: dict[str, Any]
 
 
@@ -53,10 +56,14 @@ def _build_answer_graph() -> Any:
     from langgraph.graph import END, START, StateGraph
 
     def rerank_node(state: AnswerWorkflowState) -> dict[str, Any]:
+        started = perf_counter()
         reranked = create_reranker(settings=state["settings"]).rerank(
             state["question"], state["candidates"], top_k=None
         )
-        return {"reranked": reranked}
+        return {
+            "reranked": reranked,
+            "rerank_ms": round((perf_counter() - started) * 1000, 2),
+        }
 
     def select_evidence_node(state: AnswerWorkflowState) -> dict[str, Any]:
         return {
@@ -67,6 +74,7 @@ def _build_answer_graph() -> Any:
         return {"messages": build_grounded_messages(state["question"], state["selection"])}
 
     def generate_node(state: AnswerWorkflowState) -> dict[str, Any]:
+        started = perf_counter()
         adapter = state.get("adapter") or ModelProviderAdapter(state["settings"])
         model = adapter.create_chat_model(chat_model_config_from_env())
         structured_model = model.with_structured_output(GroundedAnswer)
@@ -77,7 +85,10 @@ def _build_answer_graph() -> Any:
             payload = GroundedAnswer.model_validate(response).model_dump(mode="json")
         else:
             raise TypeError("The chat provider did not return the structured answer contract.")
-        return {"model_response": json.dumps(payload)}
+        return {
+            "model_response": json.dumps(payload),
+            "answer_generation_ms": round((perf_counter() - started) * 1000, 2),
+        }
 
     def validate_node(state: AnswerWorkflowState) -> dict[str, Any]:
         selection = state["selection"]
@@ -91,6 +102,10 @@ def _build_answer_graph() -> Any:
                 "minimum_evidence_met": selection.minimum_met,
                 "results": state["reranked"],
                 "evidence": list(selection.evidence),
+                "timings_ms": {
+                    "rerank": state["rerank_ms"],
+                    "answer_generation": state["answer_generation_ms"],
+                },
             }
         }
 
@@ -106,6 +121,10 @@ def _build_answer_graph() -> Any:
                 "minimum_evidence_met": False,
                 "results": state["reranked"],
                 "evidence": [],
+                "timings_ms": {
+                    "rerank": state["rerank_ms"],
+                    "answer_generation": 0,
+                },
             }
         }
 

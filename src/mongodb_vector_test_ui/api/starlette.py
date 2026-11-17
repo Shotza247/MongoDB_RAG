@@ -6,6 +6,7 @@ import html
 import json
 from datetime import UTC, datetime
 from json import JSONDecodeError
+from time import perf_counter
 
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -37,6 +38,10 @@ from mongodb_vector_test_ui.vectorstore.mongodb import MongoVectorStore
 async def home(request: Request) -> HTMLResponse:
     settings = get_settings()
     return HTMLResponse(_render_page(settings))
+
+
+async def health(request: Request) -> JSONResponse:
+    return JSONResponse({"status": "ok"})
 
 
 async def status(request: Request) -> JSONResponse:
@@ -342,6 +347,7 @@ async def ask(request: Request) -> JSONResponse:
     query = str(payload.get("query", "")).strip()
     if len(query) < 2:
         return JSONResponse({"error": "Query must be at least 2 characters."}, status_code=422)
+    request_started = perf_counter()
     try:
         settings = _target_settings_from_payload(payload)
         top_k = _top_k(payload.get("top_k", 10))
@@ -353,7 +359,10 @@ async def ask(request: Request) -> JSONResponse:
         return JSONResponse({"error": str(exc)}, status_code=422)
 
     try:
+        embedding_started = perf_counter()
         query_vector = embed_query(query, settings)
+        embedding_ms = round((perf_counter() - embedding_started) * 1000, 2)
+        retrieval_started = perf_counter()
         store = MongoVectorStore(settings)
         available_paths = store.vector_index_filter_paths()
         unsupported = sorted(set(filters) - available_paths)
@@ -370,6 +379,7 @@ async def ask(request: Request) -> JSONResponse:
             query_vector, top_k=top_k, min_score=min_score,
             num_candidates=num_candidates, exact=exact, filters=filters,
         )
+        retrieval_ms = round((perf_counter() - retrieval_started) * 1000, 2)
     except Exception as exc:  # noqa: BLE001 - Keep retrieval failures in the API contract.
         return JSONResponse({"error": str(exc)}, status_code=500)
 
@@ -381,13 +391,23 @@ async def ask(request: Request) -> JSONResponse:
                 "citations": [], "insufficient_evidence": True,
                 "candidate_count": 0, "reranked_count": 0, "evidence_count": 0,
                 "results": [], "evidence": [],
+                "timings_ms": {
+                    "embedding": embedding_ms,
+                    "retrieval": retrieval_ms,
+                    "rerank": 0,
+                    "answer_generation": 0,
+                    "total": round((perf_counter() - request_started) * 1000, 2),
+                },
                 "mongodb_db": settings.mongodb_db,
                 "mongodb_collection": settings.mongodb_collection,
             }
         )
 
     try:
+        answer_started = perf_counter()
         result = synthesize_answer(query, candidates, settings=settings)
+        answer_elapsed_ms = round((perf_counter() - answer_started) * 1000, 2)
+        answer_timings = result.get("timings_ms", {})
         model_info = safe_model_diagnostics()
         rerank_info = safe_reranker_diagnostics(settings)
         return JSONResponse(
@@ -399,6 +419,15 @@ async def ask(request: Request) -> JSONResponse:
                 "rerank_model": rerank_info["rerank_model"],
                 "chat_provider": model_info.get("chat_provider"),
                 "chat_model": model_info.get("chat_model"),
+                "timings_ms": {
+                    "embedding": embedding_ms,
+                    "retrieval": retrieval_ms,
+                    "rerank": answer_timings.get("rerank", 0),
+                    "answer_generation": answer_timings.get(
+                        "answer_generation", answer_elapsed_ms
+                    ),
+                    "total": round((perf_counter() - request_started) * 1000, 2),
+                },
                 "mongodb_db": settings.mongodb_db,
                 "mongodb_collection": settings.mongodb_collection,
             }

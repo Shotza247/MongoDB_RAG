@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import os
 from collections.abc import Callable, Sequence
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
@@ -13,6 +15,7 @@ Handler = Callable[[Request], Response]
 
 
 def create_app() -> FastAPI:
+    settings = get_settings()
     app = FastAPI(
         title="MongoDB RAG API",
         summary="Reusable MongoDB retrieval and reranking service",
@@ -21,11 +24,27 @@ def create_app() -> FastAPI:
             "for the browser and Streamlit evaluation clients."
         ),
         version="0.2.0",
-        debug=get_settings().app_env == "local",
+        debug=settings.app_env == "local",
+    )
+    allowed_origins = [
+        origin.strip().rstrip("/")
+        for origin in os.getenv(
+            "CORS_ALLOWED_ORIGINS",
+            "http://localhost:5500,http://127.0.0.1:5500",
+        ).split(",")
+        if origin.strip()
+    ]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_origins,
+        allow_credentials=False,
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type"],
     )
 
     routes: Sequence[tuple[str, Handler, list[str], str, str]] = (
         ("/", starlette_reference.home, ["GET"], "Test UI", "ui"),
+        ("/api/health", starlette_reference.health, ["GET"], "Liveness check", "system"),
         ("/api/status", starlette_reference.status, ["GET"], "Service status", "system"),
         (
             "/api/mongodb/databases",
